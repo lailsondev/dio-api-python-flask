@@ -1,69 +1,87 @@
 from http import HTTPStatus
 
 from flask import Blueprint, request
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask_jwt_extended import jwt_required
+from marshmallow import ValidationError
+
 from sqlalchemy import inspect
+from sqlalchemy.orm import joinedload
 
 from src.models import User, db
+from src.views.user import UserSchema, CreateUserSchema
 from src.utils import requires_role
+from src.app import bcrypt
 
 app = Blueprint('user', __name__, url_prefix='/users')
 
 def _create_user():
-    data = request.json
+    """
+    Função auxiliar para criar um novo usuário.
+    Valida os dados de entrada e salva no banco de dados.
+    """
+    user_schema = CreateUserSchema()
+    
+    try:
+        data = user_schema.load(request.json)    
+    except ValidationError as err:
+        # Retorna o dicionário de erros e o código de status 422.
+        return err.messages, HTTPStatus.UNPROCESSABLE_ENTITY
+    
     user = User(
-        username=data['username'],
-        password=data['password'],
-        role_id=data['role_id']
+        username = data['username'],
+        password = bcrypt.generate_password_hash(data['password']),
+        role_id = data['role_id']
     )
+    
     db.session.add(user)
-    db.session.commit()
+    db.session.commit()        
+    
+    return {'message': 'User created!'}, HTTPStatus.CREATED
 
+# @jwt_required()
+# @requires_role('admin')
 def _list_users():
-    query = db.select(User)
+    query = db.select(User).options(joinedload(User.role))
     users = db.session.execute(query).scalars()
     
-    return [
-        {
-            'id': user.id,
-            'username': user.username,
-            "role": {
-                'id': user.role.id,
-                'name': user.role.name
-            }
-        }
-        for user in users
-    ]   
+    users_schema = UserSchema(many=True)
+    return users_schema.dump(users)
 
-@app.route('/')
-@jwt_required()
-@requires_role("admin")
-def list_user():
-    user_id = get_jwt_identity()
-    user = db.get_or_404(User, int(user_id))
-    
-    if user.role.name != 'admin':
-        return {"message": "User doesn't have access"}, HTTPStatus.FORBIDDEN
-    
-    return {"users": _list_users()}
-
-@app.route('/', methods=['POST'])
-@jwt_required()
-@requires_role("admin")
-def create_user():
-    user_id = get_jwt_identity()
-    user = db.get_or_404(User, user_id)
-    
-    if user.role.name != 'admin':
-        return {"message": "User doesn't have access"}, HTTPStatus.FORBIDDEN
-    
-    _create_user()
-    return {'message': 'User created!'}, HTTPStatus.CREATED
+@app.route('/', methods=['GET', 'POST'])
+def list_or_create_user():
+    """
+    Endpoint principal para o recurso 'user'.
+    Lida com requisições GET (listar) e POST (criar).
+    """
+    if request.method == 'GET':
+        return {"users": _list_users()}
+    else:
+        return _create_user()
     
     
     
 @app.route('/<int:user_id>')
 def get_user(user_id):
+    """User detail view.
+    ---
+    get:
+      tags:
+        - user
+      parameters:
+        - in: path
+          name: user_id
+          required: true
+          schema: UserIdParameter
+          description: O ID do usuário a ser buscado.
+      responses:
+        200:
+          description: Successful operation
+          content:
+            application/json:
+              schema: UserSchema
+        404:
+          description: User not found
+    """
     user = db.get_or_404(User, user_id)
     
     return {
@@ -96,6 +114,25 @@ def update_user(user_id):
     
 @app.route('/<int:user_id>', methods=['DELETE'])
 def delete_user(user_id):
+    """User delete view.
+    ---
+    delete:
+      tags:
+        - user
+      summary: Deletes a user
+      description: delete a user
+      parameters:
+        - in: path
+          name: user_id
+          required: true
+          schema: UserIdParameter
+          description: O ID do usuário a ser buscado.
+      responses:
+        204:
+          description: Successful operation
+        404:
+          description: User not found
+    """
     user = db.get_or_404(User, user_id)
     
     db.session.delete(user)
