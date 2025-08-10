@@ -1,0 +1,30 @@
+[project]
+name = "dio-bank"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Lailson Conceicao", email = "lailsondev@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.9,<4.0"
+dependencies = [
+    "flask>=2.3.0,<3.0.0", # Altere aqui
+    "flask-sqlalchemy>=3.1.1,<4.0.0",
+    "flask-migrate",
+    "flask-jwt-extended (>=4.7.1,<5.0.0)",
+    "pytest",
+    "pytest-mock",
+    "psycopg2-binary",
+    "gunicorn"
+]
+
+[tool.pytest.ini_options]
+addopts = "-vvv"
+testpaths = ["tests"]
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+package-mode = false
