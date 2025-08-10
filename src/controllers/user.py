@@ -1,8 +1,11 @@
-from flask import Blueprint, request
-from src.app import User, db
 from http import HTTPStatus
-from sqlalchemy import inspect
+
+from flask import Blueprint, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from sqlalchemy import inspect
+
+from src.models import User, db
+from src.utils import requires_role
 
 app = Blueprint('user', __name__, url_prefix='/users')
 
@@ -34,6 +37,7 @@ def _list_users():
 
 @app.route('/')
 @jwt_required()
+@requires_role("admin")
 def list_user():
     user_id = get_jwt_identity()
     user = db.get_or_404(User, int(user_id))
@@ -45,6 +49,7 @@ def list_user():
 
 @app.route('/', methods=['POST'])
 @jwt_required()
+@requires_role("admin")
 def create_user():
     user_id = get_jwt_identity()
     user = db.get_or_404(User, user_id)
