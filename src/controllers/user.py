@@ -38,8 +38,8 @@ def _create_user():
     
     return {'message': 'User created!'}, HTTPStatus.CREATED
 
-# @jwt_required()
-# @requires_role('admin')
+@jwt_required()
+@requires_role('admin')
 def _list_users():
     query = db.select(User).options(joinedload(User.role))
     users = db.session.execute(query).scalars()
